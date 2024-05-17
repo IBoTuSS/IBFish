@@ -6,6 +6,7 @@ import ibotus.ibfish.utils.IBHexColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -21,14 +22,19 @@ import java.io.IOException;
 import java.util.*;
 
 public class IBChanceMenu implements Listener {
-    private static final String ITEM_CHANCES = "&8Шанс предметов: ";
+
+    public IBChanceMenu() {
+    }
 
     public static void open(Player player, String barrelName) {
-        Inventory inventory = Bukkit.createInventory(null, 36, IBHexColor.color(ITEM_CHANCES + barrelName));
+        FileConfiguration config = IBConfig.getConfig();
+        String titleTemplate = config.getString("inventory.inventory-chance.title");
+        String title = IBHexColor.color(titleTemplate + barrelName);
+        Inventory inventory = Bukkit.createInventory(null, 36, title);
 
         loadInventory(inventory, barrelName);
 
-        ItemStack grayGlass = createItemStack();
+        ItemStack grayGlass = createGrayGlassPane();
 
         int[] graySlots = {27, 28, 29, 30, 31, 32, 33, 34, 35};
         for (int slot : graySlots) {
@@ -41,90 +47,58 @@ public class IBChanceMenu implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
+        FileConfiguration config = IBConfig.getConfig();
+        String titleTemplate = config.getString("inventory.inventory-chance.title");
         String inventoryTitle = event.getView().getTitle();
-        if (inventoryTitle.startsWith(IBHexColor.color(ITEM_CHANCES))) {
+
+        if (inventoryTitle.startsWith(Objects.requireNonNull(IBHexColor.color(titleTemplate)))) {
             event.setCancelled(true);
 
             int slot = event.getRawSlot();
-
             ItemStack item = event.getCurrentItem();
-            if (item != null) {
+
+            if (item != null && item.hasItemMeta() && Objects.requireNonNull(item.getItemMeta()).hasLore()) {
                 ItemMeta meta = item.getItemMeta();
-                if (meta == null) {
-                    throw new RuntimeException("ItemMeta is null");
-                }
-                List<String> lore;
-                if (meta.hasLore()) {
-                    lore = meta.getLore();
-                    if (lore != null && !lore.isEmpty()) {
+                List<String> lore = meta.getLore();
 
-                        String chanceLine = lore.get(0);
-                        int chance = Integer.parseInt(chanceLine.split(": ")[1].replace("%", ""));
+                if (lore != null && !lore.isEmpty()) {
+                    String chanceLine = lore.get(0);
+                    int chance = Integer.parseInt(chanceLine.split(": ")[1].replace("%", ""));
 
-                        if (event.isShiftClick()) {
-                            if (event.isLeftClick() && chance >= 10) {
-                                chance -= 10;
-                            } else if (event.isRightClick() && chance <= 90) {
-                                chance += 10;
-                            }
-                        } else {
-                            if (event.isLeftClick() && chance > 0) {
-                                chance--;
-                            } else if (event.isRightClick() && chance < 100) {
-                                chance++;
-                            }
-                        }
-
-                        lore.set(0, IBHexColor.color("&aШанс: " + chance + "%"));
-                        meta.setLore(lore);
-                        item.setItemMeta(meta);
-                        event.getInventory().setItem(slot, item);
+                    if (event.isShiftClick()) {
+                        chance = adjustChanceShiftClick(event, chance);
+                    } else {
+                        chance = adjustChanceClick(event, chance);
                     }
+
+                    lore.set(0, IBHexColor.color("&aШанс: " + chance + "%"));
+                    meta.setLore(lore);
+                    item.setItemMeta(meta);
+                    event.getInventory().setItem(slot, item);
                 }
             }
         }
     }
 
-    private static ItemStack createItemStack() {
-        ItemStack itemStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta meta = itemStack.getItemMeta();
-        if (meta == null) {
-            throw new RuntimeException("ItemMeta is null");
-        }
-        meta.setDisplayName(IBHexColor.color("&7"));
-        itemStack.setItemMeta(meta);
-        return itemStack;
-    }
-
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
+        FileConfiguration config = IBConfig.getConfig();
+        String titleTemplate = config.getString("inventory.inventory-chance.title");
         String inventoryTitle = event.getView().getTitle();
-        if (inventoryTitle.startsWith(IBHexColor.color(ITEM_CHANCES))) {
-            String barrelName = inventoryTitle.replace(IBHexColor.color(ITEM_CHANCES), "");
+
+        if (inventoryTitle.startsWith(Objects.requireNonNull(IBHexColor.color(titleTemplate)))) {
+            String barrelName = inventoryTitle.replace(IBHexColor.color(titleTemplate), "");
             File file = new File("plugins/IBFish/drop", barrelName + ".yml");
+
             if (file.exists()) {
                 YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-                for (int slot = 0; slot < event.getInventory().getSize(); slot++) {
-                    ItemStack item = event.getInventory().getItem(slot);
-                    if (item != null) {
-                        ItemMeta meta = item.getItemMeta();
-                        if (meta == null) {
-                            throw new RuntimeException("ItemMeta is null");
-                        }
-                        List<String> lore = meta.getLore();
-                        if (lore != null && !lore.isEmpty()) {
-                            String chanceLine = lore.get(0);
-                            int chance = Integer.parseInt(chanceLine.split(": ")[1].replace("%", ""));
-                            yaml.set(slot + ".chance", chance);
-                        }
-                    }
-                }
+                saveInventory(event, yaml);
                 try {
-                    Player player = (Player) event.getPlayer();
-                    String chanceloot = IBConfig.getConfig().getString("messages.chance-loot");
-                    player.sendMessage(Objects.requireNonNull(IBHexColor.color(chanceloot)));
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.0f);
                     yaml.save(file);
+                    Player player = (Player) event.getPlayer();
+                    String message = config.getString("messages.chance-loot");
+                    player.sendMessage(IBHexColor.color(Objects.requireNonNull(message)));
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.5f, 1.0f);
                 } catch (IOException e) {
                     throw new RuntimeException("Error saving file: " + e.getMessage());
                 }
@@ -134,8 +108,10 @@ public class IBChanceMenu implements Listener {
 
     private static void loadInventory(Inventory inventory, String barrelName) {
         File file = new File("plugins/IBFish/drop", barrelName + ".yml");
+
         if (file.exists()) {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+
             for (String key : yaml.getKeys(false)) {
                 ItemStack item = yaml.getItemStack(key + ".item");
                 if (item != null) {
@@ -156,5 +132,50 @@ public class IBChanceMenu implements Listener {
                 }
             }
         }
+    }
+
+    private static ItemStack createGrayGlassPane() {
+        ItemStack itemStack = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = itemStack.getItemMeta();
+        if (meta == null) {
+            throw new RuntimeException("ItemMeta is null");
+        }
+        meta.setDisplayName(IBHexColor.color("&7"));
+        itemStack.setItemMeta(meta);
+        return itemStack;
+    }
+
+    private static void saveInventory(InventoryCloseEvent event, YamlConfiguration yaml) {
+        for (int slot = 0; slot < event.getInventory().getSize(); slot++) {
+            ItemStack item = event.getInventory().getItem(slot);
+            if (item != null && item.hasItemMeta() && Objects.requireNonNull(item.getItemMeta()).hasLore()) {
+                ItemMeta meta = item.getItemMeta();
+                List<String> lore = meta.getLore();
+
+                if (lore != null && !lore.isEmpty()) {
+                    String chanceLine = lore.get(0);
+                    int chance = Integer.parseInt(chanceLine.split(": ")[1].replace("%", ""));
+                    yaml.set(slot + ".chance", chance);
+                }
+            }
+        }
+    }
+
+    private static int adjustChanceClick(InventoryClickEvent event, int chance) {
+        if (event.isLeftClick() && chance > 0) {
+            chance--;
+        } else if (event.isRightClick() && chance < 100) {
+            chance++;
+        }
+        return chance;
+    }
+
+    private static int adjustChanceShiftClick(InventoryClickEvent event, int chance) {
+        if (event.isLeftClick() && chance >= 10) {
+            chance -= 10;
+        } else if (event.isRightClick() && chance <= 90) {
+            chance += 10;
+        }
+        return chance;
     }
 }

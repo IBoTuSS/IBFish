@@ -17,6 +17,12 @@ settings: # Основные настройки
     color: BLUE # Цвет
     style: SOLID # Стиль
 
+inventory:
+  inventory-chance:
+    title: "Шансы лута:"
+  inventory-edit:
+    title: "Редактировать лут:"
+
 sound: # Настройки звука
   event-start: # Звук при запуске ивента
     sound: BLOCK_BEACON_POWER_SELECT

@@ -1,15 +1,17 @@
 package ibotus.ibfish.fish;
 
+import ibotus.ibfish.configurations.IBConfig;
+import ibotus.ibfish.utils.IBHexColor;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-
-import ibotus.ibfish.utils.IBHexColor;
 
 import java.io.File;
 import java.util.HashMap;
@@ -20,7 +22,10 @@ public class IBEditMenu {
     private static final Map<UUID, Inventory> openInventories = new HashMap<>();
 
     public static void open(Player player, String barrelName) {
-        Inventory inventory = Bukkit.createInventory(null, 36, IBHexColor.color("&8Предметы в бочке: " + barrelName));
+        FileConfiguration config = IBConfig.getConfig();
+        String titleTemplate = config.getString("inventory.inventory-edit.title");
+        String title = IBHexColor.color(titleTemplate + barrelName);
+        Inventory inventory = Bukkit.createInventory(null, 36, title);
 
         loadInventory(inventory, barrelName);
 
@@ -68,5 +73,3 @@ public class IBEditMenu {
         return itemStack;
     }
 }
-
-

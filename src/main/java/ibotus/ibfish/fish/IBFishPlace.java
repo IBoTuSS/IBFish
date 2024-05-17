@@ -18,6 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.HashMap;
+import java.util.Objects;
 
 public class IBFishPlace implements Listener {
 
@@ -27,24 +28,9 @@ public class IBFishPlace implements Listener {
         Block block = event.getBlockPlaced();
         ItemStack item = event.getItemInHand();
 
-        if (block.getType() == Material.BARREL && isUniqueBarrel(item)) {
+        if (isUniqueBarrel(item)) {
             Barrel barrel = (Barrel) block.getState();
-            Inventory barrelInventory = barrel.getInventory();
-            Inventory playerInventory = player.getInventory();
-
-            for (ItemStack itemStack : barrelInventory.getContents()) {
-                if (itemStack != null) {
-                    HashMap<Integer, ItemStack> notAddedItems = playerInventory.addItem(itemStack);
-
-                    if (!notAddedItems.isEmpty()) {
-                        for (ItemStack notAddedItem : notAddedItems.values()) {
-                            player.getWorld().dropItemNaturally(player.getLocation(), notAddedItem);
-                        }
-                    }
-                }
-            }
-
-            barrelInventory.clear();
+            transferItemsToPlayer(barrel.getInventory(), player);
             block.setType(Material.AIR, true);
         }
     }
@@ -55,31 +41,43 @@ public class IBFishPlace implements Listener {
         }
 
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
+        if (meta == null || !meta.hasEnchant(Enchantment.LUCK) || !meta.hasDisplayName()) {
             return false;
         }
 
-        if (!meta.hasEnchant(Enchantment.LUCK)) {
-            return false;
-        }
-
-        if (!meta.hasDisplayName()) {
-            return false;
-        }
-
+        String itemName = meta.getDisplayName();
         FileConfiguration config = IBConfig.getConfig();
         ConfigurationSection fishingConfig = config.getConfigurationSection("fishing");
+
         if (fishingConfig == null) {
             return false;
         }
 
         for (String key : fishingConfig.getKeys(false)) {
             String barrelName = IBHexColor.color(config.getString("fishing." + key + ".name"));
-            if (meta.getDisplayName().equals(barrelName)) {
+            if (Objects.equals(itemName, barrelName)) {
                 return true;
             }
         }
+
         return false;
     }
 
+    private void transferItemsToPlayer(Inventory barrelInventory, Player player) {
+        Inventory playerInventory = player.getInventory();
+
+        for (ItemStack itemStack : barrelInventory.getContents()) {
+            if (itemStack != null) {
+                HashMap<Integer, ItemStack> notAddedItems = playerInventory.addItem(itemStack);
+
+                if (!notAddedItems.isEmpty()) {
+                    for (ItemStack notAddedItem : notAddedItems.values()) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), notAddedItem);
+                    }
+                }
+            }
+        }
+
+        barrelInventory.clear();
+    }
 }
