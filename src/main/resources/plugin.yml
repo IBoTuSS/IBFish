@@ -1,0 +1,15 @@
+name: IBFish
+version: '${project.version}'
+main: ibotus.ibfish.IBFish
+api-version: '1.16'
+authors: [IBoTuS]
+softdepend: [PlaceholderAPI]
+commands:
+  IBFish: {}
+permissions:
+  ibfish.reload:
+    default: op
+  ibfish.event-start:
+    default: op
+  ibfish.command:
+    default: op
